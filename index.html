@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Executive Sales Intelligence Dashboard</title>
+  <meta name="description" content="Real-time Executive Sales Performance & Analytics Dashboard">
+  
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+  <div class="app-layout">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo-icon">
+          <i class="fa-solid fa-chart-line"></i>
+        </div>
+        <div class="brand-info">
+          <h1>Executive Sales Dashboard</h1>
+          <p class="subtitle">Real-time Revenue, Margin & Performance Intelligence</p>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <!-- Excel Source File Selector & Actions -->
+        <div class="file-selector-chip" title="Excel source file monitored for updates">
+          <i class="fa-solid fa-file-excel"></i>
+          <select id="excelFileSelect" aria-label="Select Excel Source File">
+            <option value="AUTO">Auto (Newest Saved File)</option>
+          </select>
+          <button id="btnDeleteSelectedFile" class="chip-delete-btn" title="Delete currently selected file from disk">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+          <button id="btnOpenFileManager" class="chip-manage-btn" title="Manage & delete all Excel / CSV files">
+            <i class="fa-solid fa-folder-open"></i>
+          </button>
+        </div>
+
+        <!-- Manual Sync Status Chip -->
+        <div class="live-status-chip manual-mode" id="connectionStatus">
+          <span class="status-dot manual"></span>
+          <span class="status-text" id="liveStatusText">Manual Refresh</span>
+          <span class="status-time" id="lastUpdatedTime">Loaded</span>
+        </div>
+        
+        <button id="btnRefresh" class="action-btn primary-refresh" title="Click to manually refresh data from Excel (Shortcut: 'R')">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Refresh Data</span>
+        </button>
+
+        <button id="btnUpload" class="action-btn secondary" title="Upload or pick any Excel (.xlsx) or CSV (.csv) file directly">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Upload File</span>
+        </button>
+        <input type="file" id="fileInput" accept=".xlsx,.csv" style="display: none;">
+
+        <button id="btnSaveToExcel" class="action-btn save-btn hidden" title="Save dashboard changes back to Excel on disk">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span id="saveBtnText">Save to Excel</span>
+        </button>
+
+        <button id="btnExport" class="action-btn secondary" title="Export filtered records to CSV">
+          <i class="fa-solid fa-download"></i>
+          <span>Export CSV</span>
+        </button>
+
+        <button id="btnThemeToggle" class="icon-toggle-btn" title="Toggle Light/Dark Theme">
+          <i class="fa-solid fa-sun" id="themeIcon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Manual Refresh Notice Banner -->
+    <div class="live-notice-banner" id="liveNoticeBanner">
+      <div class="notice-content">
+        <i class="fa-solid fa-hand-pointer notice-icon"></i>
+        <span><strong>Manual Refresh Mode:</strong> Whenever you edit or delete in Excel and save (<kbd>Ctrl + S</kbd>), click <strong>Refresh Data</strong> (or press <kbd>R</kbd>). You can also delete rows directly in the table below and click <strong>Save to Excel</strong>!</span>
+      </div>
+      <button class="notice-dismiss" id="btnDismissNotice" title="Dismiss notice">&times;</button>
+    </div>
+
+    <!-- Unsaved Changes Banner -->
+    <div class="unsaved-changes-banner hidden" id="unsavedBanner">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span>You have deleted <strong id="unsavedCount">0</strong> rows from the dashboard. Click <strong>Save to Excel</strong> above to permanently save this change to your Excel file!</span>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="dashboard-body">
+      <!-- Filter & Controls Toolbar -->
+      <section class="controls-card" aria-label="Filters">
+        <div class="controls-row">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" placeholder="Search orders, reps, products, regions..." autocomplete="off">
+            <button id="btnClearSearch" class="clear-btn hidden">&times;</button>
+          </div>
+
+          <div class="filter-group">
+            <label for="regionSelect"><i class="fa-solid fa-earth-americas"></i> Region</label>
+            <select id="regionSelect">
+              <option value="ALL">All Regions</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="categorySelect"><i class="fa-solid fa-cubes"></i> Category</label>
+            <select id="categorySelect">
+              <option value="ALL">All Categories</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="segmentSelect"><i class="fa-solid fa-users"></i> Segment</label>
+            <select id="segmentSelect">
+              <option value="ALL">All Segments</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="repSelect"><i class="fa-solid fa-user-tie"></i> Sales Rep</label>
+            <select id="repSelect">
+              <option value="ALL">All Sales Reps</option>
+            </select>
+          </div>
+
+          <div class="filter-actions">
+            <button id="btnResetFilters" class="btn-text">
+              <i class="fa-solid fa-filter-circle-xmark"></i> Reset Filters
+            </button>
+          </div>
+        </div>
+
+        <div class="date-presets-row">
+          <span class="preset-label"><i class="fa-regular fa-calendar"></i> Date Range:</span>
+          <div class="date-pill-group">
+            <button class="date-pill active" data-range="all">All Time</button>
+            <button class="date-pill" data-range="2026">2026</button>
+            <button class="date-pill" data-range="2025">2025</button>
+            <button class="date-pill" data-range="last90">Last 90 Days</button>
+            <button class="date-pill" data-range="last30">Last 30 Days</button>
+          </div>
+          <div class="record-counter">
+            Showing <strong id="displayedRecordsCount">0</strong> of <span id="totalRecordsCount">0</span> transactions
+            <span class="active-file-indicator">(from <span id="activeSourceTag">-</span>)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- KPI Summary Cards -->
+      <section class="kpi-grid" aria-label="Key Performance Indicators">
+        <!-- KPI 1: Revenue -->
+        <div class="kpi-card accent-blue">
+          <div class="kpi-icon-wrapper">
+            <i class="fa-solid fa-dollar-sign"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-title">TOTAL REVENUE</span>
+            <div class="kpi-value-row">
+              <h2 class="kpi-value" id="kpiRevenue">$0</h2>
+              <span class="kpi-badge positive" id="kpiRevenueBadge">+12.4% MoM</span>
+            </div>
+            <p class="kpi-subtext">Gross invoiced billings</p>
+          </div>
+        </div>
+
+        <!-- KPI 2: Gross Profit -->
+        <div class="kpi-card accent-emerald">
+          <div class="kpi-icon-wrapper">
+            <i class="fa-solid fa-sack-dollar"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-title">TOTAL GROSS PROFIT</span>
+            <div class="kpi-value-row">
+              <h2 class="kpi-value" id="kpiProfit">$0</h2>
+              <span class="kpi-badge positive" id="kpiProfitMarginBadge">38.5% Margin</span>
+            </div>
+            <p class="kpi-subtext">Net earnings after COGS</p>
+          </div>
+        </div>
+
+        <!-- KPI 3: Profit Margin -->
+        <div class="kpi-card accent-cyan">
+          <div class="kpi-icon-wrapper">
+            <i class="fa-solid fa-chart-pie"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-title">OVERALL MARGIN</span>
+            <div class="kpi-value-row">
+              <h2 class="kpi-value" id="kpiMargin">0.0%</h2>
+              <span class="kpi-badge neutral">Healthy Tier</span>
+            </div>
+            <p class="kpi-subtext">Profit-to-revenue ratio</p>
+          </div>
+        </div>
+
+        <!-- KPI 4: Orders -->
+        <div class="kpi-card accent-amber">
+          <div class="kpi-icon-wrapper">
+            <i class="fa-solid fa-bag-shopping"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-title">TOTAL ORDERS</span>
+            <div class="kpi-value-row">
+              <h2 class="kpi-value" id="kpiOrders">0</h2>
+              <span class="kpi-badge neutral" id="kpiUnitsBadge">0 Units</span>
+            </div>
+            <p class="kpi-subtext">Fulfilled customer orders</p>
+          </div>
+        </div>
+
+        <!-- KPI 5: Avg Order Value -->
+        <div class="kpi-card accent-purple">
+          <div class="kpi-icon-wrapper">
+            <i class="fa-solid fa-receipt"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-title">AVG ORDER VALUE</span>
+            <div class="kpi-value-row">
+              <h2 class="kpi-value" id="kpiAOV">$0</h2>
+              <span class="kpi-badge neutral">Per Transaction</span>
+            </div>
+            <p class="kpi-subtext">Revenue per order basket</p>
+          </div>
+        </div>
+
+        <!-- KPI 6: Top Driver -->
+        <div class="kpi-card accent-rose">
+          <div class="kpi-icon-wrapper">
+            <i class="fa-solid fa-trophy"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-title">TOP CATEGORY</span>
+            <div class="kpi-value-row">
+              <h2 class="kpi-value" id="kpiTopCategory">-</h2>
+              <span class="kpi-badge positive" id="kpiTopCategoryShare">0% Share</span>
+            </div>
+            <p class="kpi-subtext" id="kpiTopRegionSub">Top Region: -</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts Section (Grid) -->
+      <section class="charts-grid">
+        <!-- Chart 1: Monthly Timeline (Wide) -->
+        <div class="chart-card wide-card">
+          <div class="chart-header">
+            <div>
+              <h3>Monthly Revenue & Profit Trajectory</h3>
+              <p class="chart-desc">Historical revenue bars with overlaid gross profit trend line</p>
+            </div>
+            <div class="chart-metric-tags">
+              <span class="legend-chip blue"><span class="chip-dot"></span> Revenue</span>
+              <span class="legend-chip orange"><span class="chip-dot"></span> Profit</span>
+            </div>
+          </div>
+          <div class="chart-canvas-wrapper" style="height: 320px;">
+            <canvas id="monthlyTrendChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Category Breakdown (Donut) -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3>Revenue by Category</h3>
+              <p class="chart-desc">Product line contribution share</p>
+            </div>
+          </div>
+          <div class="chart-canvas-wrapper" style="height: 320px;">
+            <canvas id="categoryDonutChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 3: Regional Performance (Horizontal Bar) -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3>Regional Revenue</h3>
+              <p class="chart-desc">Territory sales volume distribution</p>
+            </div>
+          </div>
+          <div class="chart-canvas-wrapper" style="height: 300px;">
+            <canvas id="regionBarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 4: Top Sales Reps Leaderboard -->
+        <div class="chart-card wide-card">
+          <div class="chart-header">
+            <div>
+              <h3>Sales Representatives Leaderboard</h3>
+              <p class="chart-desc">Top performing reps by total generated billings</p>
+            </div>
+          </div>
+          <div class="chart-canvas-wrapper" style="height: 300px;">
+            <canvas id="salesRepChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data Explorer / Orders Table Section -->
+      <section class="table-section">
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title-group">
+              <h3>Sales Transactions Explorer</h3>
+              <p class="table-desc">Detailed transactional breakdown powered live by Excel</p>
+            </div>
+            <div class="table-actions">
+              <div class="pagination-limit">
+                <label for="pageSizeSelect">Show:</label>
+                <select id="pageSizeSelect">
+                  <option value="10">10</option>
+                  <option value="25" selected>25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table" id="ordersTable">
+              <thead>
+                <tr>
+                  <th data-sort="date" class="sortable">Date <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="order_id" class="sortable">Order ID <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="region" class="sortable">Region <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="category" class="sortable">Category <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="product" class="sortable">Product <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="sales_rep" class="sortable">Sales Rep <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="segment" class="sortable">Segment <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="units" class="sortable text-right">Units <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="revenue" class="sortable text-right">Revenue <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="profit" class="sortable text-right">Profit <i class="fa-solid fa-sort"></i></th>
+                  <th data-sort="margin" class="sortable text-right">Margin % <i class="fa-solid fa-sort"></i></th>
+                  <th class="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <tr>
+                  <td colspan="11" class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading transactions...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-footer">
+            <div class="pagination-info" id="paginationInfo">
+              Showing 0 to 0 of 0 entries
+            </div>
+            <div class="pagination-controls">
+              <button id="btnPrevPage" class="page-btn" disabled>
+                <i class="fa-solid fa-chevron-left"></i> Previous
+              </button>
+              <div class="page-numbers" id="pageNumbers"></div>
+              <button id="btnNextPage" class="page-btn">
+                Next <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Floating Live Update Toast -->
+    <div id="toastNotification" class="toast-notification hidden">
+      <i class="fa-solid fa-circle-check"></i>
+      <span id="toastMessage">Live update detected from Excel!</span>
+    </div>
+
+    <!-- File Manager Modal -->
+    <div id="fileManagerModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <i class="fa-solid fa-folder-open modal-title-icon"></i>
+            <div>
+              <h3>Data Files Manager</h3>
+              <p class="modal-desc">Switch between, load, or delete Excel (.xlsx) and CSV (.csv) data files</p>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="btnCloseFileManager">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="file-list-container" id="fileManagerList">
+            <!-- Dynamically populated file list -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="action-btn secondary" id="btnUploadInModal"><i class="fa-solid fa-cloud-arrow-up"></i> Upload New File</button>
+          <button class="action-btn" id="btnCloseFileManagerFooter">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Executive Sales Dashboard &bull; Live localhost interface &bull; Source: <span id="sourceFileName">-</span> &bull; Sheet: <span id="sourceSheetName">-</span></p>
+    </footer>
+  </div>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>
